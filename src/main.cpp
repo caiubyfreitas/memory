@@ -3,18 +3,18 @@
 #include <time.h>
 #include "../external/raylib/raylib.h"
 
-const u_int8_t MAX_ROWS  = 3;
-const u_int8_t MAX_COLS  = 3;
-constexpr u_int8_t MAX_SEQUENCE = MAX_COLS * MAX_ROWS;
-const u_int8_t CELL_HEIGHT = 79;
-const u_int8_t CELL_WIDTH = 84;
-const u_int8_t CELL_SIZE = 100;
-const u_int8_t CELL_PAD_H  = 25;
-const u_int8_t CELL_PAD_V  = 10;
-const u_int8_t CELL_PAD = 25;
-const u_int8_t MAX_LEVEL = 10;
-const u_int16_t SCR_WIDTH = 800;
-const u_int16_t SCR_HEIGHT = 489;
+const uint8_t MAX_ROWS  = 3;
+const uint8_t MAX_COLS  = 3;
+constexpr uint8_t MAX_SEQUENCE = MAX_COLS * MAX_ROWS;
+const uint8_t CELL_HEIGHT = 79;
+const uint8_t CELL_WIDTH = 84;
+const uint8_t CELL_SIZE = 100;
+const uint8_t CELL_PAD_H  = 25;
+const uint8_t CELL_PAD_V  = 10;
+const uint8_t CELL_PAD = 25;
+const uint8_t MAX_LEVEL = 10;
+const uint16_t SCR_WIDTH = 800;
+const uint16_t SCR_HEIGHT = 489;
 
 enum class State { Idle, Title, IsRunning, IsAnimating, IsWaiting, IsOver } ;
 
@@ -22,43 +22,48 @@ State GameState;
 
 typedef struct Cell
 {
-    u_int8_t id;
+    uint8_t id;
     bool selected;
     Rectangle hitbox;
-    u_int8_t image_id;
+    uint8_t image_id;
     Texture2D image;
 } Cell;
 
 typedef struct Level
 {
-    u_int8_t difficulty;
-    u_int8_t sequence[20];
+    uint8_t difficulty;
+    uint8_t sequence[20];
 } Level;
 
-u_int8_t CurrentLevel;
+Cell Piece;
+
+uint8_t CurrentLevel;
 Cell board[MAX_ROWS][MAX_COLS];
 Level levels[MAX_LEVEL];
 
-u_int16_t FrameCounter;
+uint16_t FrameCounter;
 
 Texture2D Overlay, Background, ClickToPlay;
 Texture2D TVStaticImage[2];
 float AnimTVStaticInterval, AnimTVIdleInterval, AnimTVIdleElapsedTime, AnimTVStaticElapsedTime;
-u_int8_t AnimTVStaticFrame;
+uint8_t AnimTVStaticFrame;
 bool AnimTVStaticActive;
 Sound TVStaticSound, GameStartSound;
 float GameStartDelay;
 bool GameStartSoundOn;
+uint8_t NextPieceIndex;
+bool WaitForPlayer;
+uint8_t BlinkCount;
 
 void SetPiecePositions()
 {
     // Generates a non-repeatable sequence of random numbers from 1 to 9. 
-    u_int8_t positions[10] = {0};
-    u_int8_t room = 0;
+    uint8_t positions[10] = {0};
+    uint8_t room = 0;
     SetRandomSeed(time(NULL));
     do
     {
-        u_int8_t num = GetRandomValue(1, 9);
+        uint8_t num = GetRandomValue(1, 9);
         if (positions[num] == 0)
         {
             positions[num] = room;
@@ -67,25 +72,24 @@ void SetPiecePositions()
     }
     while(room < 10);
     // Assign each number representing an image to a position in the board
-    u_int8_t k = 1;
-    for (u_int8_t i=0; i<MAX_COLS; i++)
+    uint8_t k = 1;
+    for (uint8_t i=0; i<MAX_COLS; i++)
     {
-        for (u_int8_t j=0; j<MAX_ROWS; j++)
+        for (uint8_t j=0; j<MAX_ROWS; j++)
         {
             board[i][j].image_id = positions[k++];
-            //printf("image: %d \n", board[i][j].image_id);
         }
     }
 }
 
 void SetupBoard()
 {
-    u_int8_t counter = 0;
+    uint8_t counter = 0;
     float StartCornerX = 190;
     float StartCornerY = 135;
-    for (u_int8_t i=0; i<MAX_COLS; i++)
+    for (uint8_t i=0; i<MAX_COLS; i++)
     {
-        for (u_int8_t j=0; j<MAX_ROWS; j++)
+        for (uint8_t j=0; j<MAX_ROWS; j++)
         {
             board[i][j] = 
             {
@@ -113,8 +117,8 @@ void SetupDifficultyLevels()
     levels[2] = { 6, {0} };
     levels[3] = { 8, {0} };
     levels[4] = {10, {0} };
-    u_int8_t seed = 0;
-    for (u_int8_t i=5; i < MAX_LEVEL; i++)
+    uint8_t seed = 0;
+    for (uint8_t i=5; i < MAX_LEVEL; i++)
     {   
         seed = (i % 5 == 0) ? seed + 1 : seed; // increases difficulty after passing 5 consecutive levels
         levels[i].difficulty = levels[i%5].difficulty + seed;
@@ -126,10 +130,10 @@ void GenerateLevels()
     if (GameState == State::Idle)
     {
         SetRandomSeed(time(NULL));
-        for (u_int8_t i=0; i < MAX_LEVEL; i++)
+        for (uint8_t i=0; i < MAX_LEVEL; i++)
         {
             printf("lvl: %i -> ", i);
-            for (u_int8_t j=0; j < levels[i].difficulty; j++)
+            for (uint8_t j=0; j < levels[i].difficulty; j++)
             {
                 levels[i].sequence[j] = GetRandomValue(1, MAX_SEQUENCE);
                 printf("%d ", levels[i].sequence[j]);
@@ -143,9 +147,9 @@ void GenerateLevels()
 
 void ShowHitBoxes()
 {
-    for (u_int8_t i=0; i<MAX_COLS; i++)
+    for (uint8_t i=0; i<MAX_COLS; i++)
     {
-        for (u_int8_t j=0; j<MAX_ROWS; j++)
+        for (uint8_t j=0; j<MAX_ROWS; j++)
         {
             DrawRectangleLines(board[i][j].hitbox.x, board[i][j].hitbox.y, board[i][j].hitbox.width, board[i][j].hitbox.height, RED);
         }
@@ -160,17 +164,15 @@ void Initialize()
     GenerateLevels();
     InitWindow(SCR_WIDTH, SCR_HEIGHT, "MEMORY GAME");
     GameState = State::Idle;
-    CurrentLevel = 1;
     Overlay = LoadTexture("resources/overlay.png");
     Background = LoadTexture("resources/background.png");
     ClickToPlay = LoadTexture("resources/clicktoplay.png");
     // Load images for pieces
-    for (u_int8_t i=0; i<MAX_COLS; i++)
+    for (uint8_t i=0; i<MAX_COLS; i++)
     {
-        for (u_int8_t j=0; j<MAX_ROWS; j++)
+        for (uint8_t j=0; j<MAX_ROWS; j++)
         {
             std::string c = "resources/" + std::to_string(board[i][j].image_id) + ".png";
-            printf("%s\n", c.c_str());
             board[i][j].image = LoadTexture(c.c_str());
         }
     }
@@ -192,9 +194,9 @@ void Initialize()
 
 void DrawBoard()
 {
-    for (u_int8_t i=0; i < MAX_ROWS; i++)
+    for (uint8_t i=0; i < MAX_ROWS; i++)
     {
-        for (u_int8_t j=0; j < MAX_COLS; j++)
+        for (uint8_t j=0; j < MAX_COLS; j++)
         {
             DrawRectangle(board[i][j].hitbox.x,board[i][j].hitbox.y,board[i][j].hitbox.width,board[i][j].hitbox.height, WHITE);
         }
@@ -228,6 +230,49 @@ void Update()
         {
             PlaySound(GameStartSound);
             GameStartSoundOn = true;
+            CurrentLevel = 0;
+            NextPieceIndex = -1;
+            WaitForPlayer = false;
+        }
+    }
+    if (GameState == State::IsRunning)
+    {
+        if (BlinkCount < 60)
+        {
+            BlinkCount++;
+        }
+        else
+        {
+            if (NextPieceIndex < levels[CurrentLevel].difficulty) // if end of level
+            {
+                BlinkCount = 0;
+                NextPieceIndex++;
+            }
+            else
+            {
+                WaitForPlayer = true;
+
+            }
+        }
+        if (!WaitForPlayer)
+        {
+            if (CurrentLevel > -1 && CurrentLevel < MAX_LEVEL-1)
+            {
+                Piece.id = levels[CurrentLevel].sequence[NextPieceIndex];
+
+                for (uint8_t i = 0; i < MAX_COLS; i++)
+                {
+                    for(uint8_t j = 0; j < MAX_ROWS; j++)
+                    {
+                        if (board[i][j].id == Piece.id)
+                        {
+                            Piece.hitbox = (Rectangle)board[i][j].hitbox;
+                            break;
+                        }
+                    }
+                    
+                }
+            }
         }
     }
     FrameCounter++;
@@ -256,7 +301,7 @@ void Draw()
             if (GameStartSoundOn)
             {
                 GameStartDelay += GetFrameTime();
-                if (GameStartDelay > 3)
+                if (GameStartDelay > 2)
                 {
                     GameStartDelay = 0;
                     GameStartSoundOn = false;
@@ -279,14 +324,19 @@ void Draw()
         {
             DrawTexture(Background, 50, 50, WHITE);
             DrawFPS(95,70);
-            ShowHitBoxes();
-            //DrawTexture(board[0][0].image, 100, 200, WHITE);
-            for (u_int8_t i=0; i < MAX_ROWS; i++)
+            //ShowHitBoxes();
+            for (uint8_t i=0; i < MAX_ROWS; i++)
             {
-                for (u_int8_t j=0; j < MAX_COLS; j++)
+                for (uint8_t j=0; j < MAX_COLS; j++)
                 {
                     DrawTexture(board[i][j].image, board[i][j].hitbox.x, board[i][j].hitbox.y, WHITE);
-                    //printf("%f %f\n", board[i][j].hitbox.x, board[i][j].hitbox.y);
+                }
+            }
+            if ((FrameCounter/10)%2)
+            {
+               if (BlinkCount < 60)
+                {
+                    DrawRectangle(Piece.hitbox.x, Piece.hitbox.y, Piece.hitbox.width, Piece.hitbox.height, RED);
                 }
             }
         }
